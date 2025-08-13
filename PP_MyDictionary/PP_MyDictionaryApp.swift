@@ -12,6 +12,7 @@ struct PP_MyDictionaryApp: App {
     var body: some Scene {
         WindowGroup {
             MainView()
+                .preferredColorScheme(.light)
         }
         .modelContainer(for: Vocabulary.self)
     }

@@ -55,6 +55,7 @@ struct TutorialView: View {
                 
                 if currentPage < pageHeadings.count - 1 {
                     Button(action: {
+                        hasViewedWalkthrough = true
                         dismiss()
                     }) {
                         Text("Skip")

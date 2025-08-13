@@ -54,7 +54,7 @@ struct PracticeTabMainView: View {
                 VStack(spacing: 30) {
                     if let question = question {
                         Text("What does \"\(question.definition)\" mean?")
-                            .font(.title2)
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.center)
                         
                         ForEach(0..<answers.count, id: \.self) { index in
@@ -62,6 +62,7 @@ struct PracticeTabMainView: View {
                                 checkAnswer(index: index)
                             }) {
                                 Text(answers[index])
+                                    .font(.system(size: 18, weight: .medium, design: .rounded))
                                     .padding()
                                     .frame(maxWidth: .infinity)
                                     .background(Color(.systemGray3))
