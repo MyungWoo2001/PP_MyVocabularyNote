@@ -24,6 +24,7 @@ struct VocabularyListView: View {
     @Environment(\.modelContext) private var modelContext
     
     @State private var showNewVocabulary = false
+    @State private var showIconInfo = false
     
     var body: some View {
         NavigationStack {
@@ -34,7 +35,7 @@ struct VocabularyListView: View {
                     Image("emptyview")
                         .resizable()
                         .scaledToFit()
-                        .padding(.horizontal, 50)
+                        .padding(.horizontal, 80)
                     Spacer()
                 }
                 .listRowSeparator(.hidden)
@@ -42,10 +43,19 @@ struct VocabularyListView: View {
                 .navigationTitle("Vocabulary")
                 .navigationBarTitleDisplayMode(.automatic)
                 .toolbar {
-                    Button(action: {
-                        self.showNewVocabulary.toggle()
-                    }) {
-                        Image(systemName: "plus")
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: {
+                            self.showIconInfo.toggle()
+                        }) {
+                            Image(systemName: "info.circle")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: {
+                            self.showNewVocabulary.toggle()
+                        }) {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             } else {
@@ -55,18 +65,27 @@ struct VocabularyListView: View {
                         VocabularyRowView(vocabulary: listItems[index])
                     }
                     .onDelete(perform: deleteRecord)
+                }// ListView
+                .navigationTitle("Vocabulary")
+                .navigationBarTitleDisplayMode(.automatic)
+                
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: {
+                            self.showIconInfo.toggle()
+                        }) {
+                            Image(systemName: "info.circle")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: {
+                            self.showNewVocabulary.toggle()
+                        }) {
+                            Image(systemName: "plus")
+                        }
+                    }
                 }
-            .navigationTitle("Vocabulary")
-            .navigationBarTitleDisplayMode(.automatic)
-            
-            .toolbar {
-                Button(action: {
-                    self.showNewVocabulary.toggle()
-                }) {
-                    Image(systemName: "plus")
-                }}
-            } // ListView
-            
+            }
         } // NavigationStack
         .tint(.primary)
         .sheet(isPresented: $showNewVocabulary) {
@@ -74,6 +93,9 @@ struct VocabularyListView: View {
         }
         .sheet(isPresented: $showWalkthrough) {
             TutorialView()
+        }
+        .sheet(isPresented: $showIconInfo) {
+            IconInfoView()
         }
         .onAppear() {
             showWalkthrough = hasViewedWalkthrough ? false : true

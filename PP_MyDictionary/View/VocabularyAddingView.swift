@@ -24,11 +24,13 @@ struct VocabularyAddingView: View {
     @Environment(\.modelContext) private var modelContext // call the database
     private func save() {
         for index in saveVocabularies.indices {
-            let vocabulary = Vocabulary(definition: saveVocabularies[index].definition, meaning: saveVocabularies[index].meaning, note: saveVocabularies[index].note, tag: Vocabularies.count + 1 + index)
-            
-            modelContext.insert(vocabulary)
-        }
-    }
+            if saveVocabularies[index].definition != "" && saveVocabularies[index].meaning != "" {
+                let vocabulary = Vocabulary(definition: saveVocabularies[index].definition, meaning: saveVocabularies[index].meaning, note: saveVocabularies[index].note, tag: Vocabularies.count + 1 + index)
+                
+                modelContext.insert(vocabulary)
+            } // if
+        } // for
+    } // save
     
     var body: some View {
         NavigationStack {
@@ -36,8 +38,8 @@ struct VocabularyAddingView: View {
                 VStack(alignment: .leading) {
                     ForEach(saveVocabularies.indices, id: \.self) { index in
                         HStack {
-                            FormTextField(placeholder: "New word", value: $saveVocabularies[index].definition)
-                            FormTextField(placeholder: "Meaning", value: $saveVocabularies[index].meaning)
+                            FormTextFieldWithLimit(placeholder: "New word", maxLength: 18, value: $saveVocabularies[index].definition)
+                            FormTextFieldWithLimit(placeholder: "Meaning", maxLength: 18, value: $saveVocabularies[index].meaning)
                         }
                     } // Hstack1
                     HStack {
@@ -82,6 +84,33 @@ struct VocabularyAddingView: View {
     }
 }
 
+struct FormTextFieldWithLimit: View {
+    var placeholder: String = ""
+    var maxLength: Int
+    
+    @Binding var value: String
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            TextField(placeholder, text: $value)
+                .onChange(of: value) { newValue, oldValue in
+                    if newValue.count > maxLength {
+                        self.value = String(newValue.prefix(maxLength))
+                    }
+                }
+                .font(.system(.body, design: .rounded))
+                .textFieldStyle(PlainTextFieldStyle())
+                .padding(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color(.systemGray5), lineWidth: 1)
+                )
+                .padding(.vertical, 10)
+            
+        }
+    }
+}
+
 struct FormTextField: View {
     var placeholder: String = ""
     
@@ -102,6 +131,7 @@ struct FormTextField: View {
         }
     }
 }
+
 
 struct FormTextView: View {
     let label: String

@@ -24,6 +24,7 @@ struct MainView: View {
                 }
                 .tag(1)
         }
+        .tint(.primary)
     }
 }
 

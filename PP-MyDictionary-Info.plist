@@ -15,5 +15,16 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>476496979210-4ubikphdk9m56dl8r0v440fbtt3vvm7o.apps.googleusercontent.com</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIImageName</key>
+		<string>cover</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<true/>
+		<key>UILaunchScreen</key>
+		<dict/>
+	</dict>
+	<key>User Interface Style</key>
+	<string>Light</string>
 </dict>
 </plist>
