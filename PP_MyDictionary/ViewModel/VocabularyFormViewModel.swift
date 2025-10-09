@@ -12,15 +12,15 @@ import SwiftUI
     
     var definition: String = ""
     var meaning: String = ""
+    var group: String = ""
     var note: String = ""
-    var tag: Int = 0
     
     init(vocabulary: Vocabulary? = nil) {
         if let vocabulary = vocabulary {
             self.definition = vocabulary.definition
             self.meaning = vocabulary.meaning
+            self.group = vocabulary.group
             self.note = vocabulary.note
-            self.tag = vocabulary.tag
             
         }
     }
