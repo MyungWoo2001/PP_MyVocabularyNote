@@ -1,0 +1,48 @@
+# ===============================
+# Xcode & macOS
+# ===============================
+
+# User-specific files
+xcuserdata/
+*.xcuserstate
+
+# Build output
+DerivedData/
+build/
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods
+Pods/
+*.xcworkspace
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# Archive
+*.xcarchive
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Other temp files
+*.swp
+*.lock
+*.log
+*.tmp
+
