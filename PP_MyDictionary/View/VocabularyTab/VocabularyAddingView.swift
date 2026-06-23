@@ -10,46 +10,19 @@ import SwiftData
 
 struct VocabularyAddingView: View {
         
-    @State var languages: [String] = []
-    @State var selectedLanguage: String = ""
-    @State var groups: [String] = []
-    @State var selectedGroup: String = ""
-    
-    private func loadDatas() {
-        if let savedLanguages = UserDefaults.standard.stringArray(forKey: "languages") {
-            languages = savedLanguages
-            languages.sort(by: <)
-        }
-        if let savedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") {
-            selectedLanguage = savedLanguage
-        }
-        if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups
-            groups.sort(by: <)
-        }
-        if let savedGroup = UserDefaults.standard.string(forKey: "selectedGroup") {
-            selectedGroup = savedGroup
-        }
-    }
+    @StateObject private var preferences = VocabularyPreferencesStore()
     
     @State private var showNewLanguage: Bool = false
     @State var newLanguage: String = ""
     private func saveLanguage() {
-        if newLanguage != "" {
-            languages.append(newLanguage)
-            UserDefaults.standard.set(languages, forKey: "languages")
-            newLanguage = ""
-        }
+        preferences.addLanguage(newLanguage)
+        newLanguage = ""
     }
     @State private var showNewGroup: Bool = false
     @State var newGroup: String = ""
     private func saveGroup(){
-        if newGroup != "" {
-            groups.append(newGroup)
-            groups.sort(by: <)
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
-            newGroup = ""
-        }
+        preferences.addGroup(newGroup)
+        newGroup = ""
     }
     
     @Query var Vocabularies: [Vocabulary]
@@ -61,13 +34,13 @@ struct VocabularyAddingView: View {
         
     private func save() {
         for draf in saveVocabularies {
-            if draf.definition != "" && draf.meaning != "" && draf.group != "" && selectedLanguage != "" {
+            if draf.definition != "" && draf.meaning != "" && draf.group != "" && preferences.selectedLanguage != "" {
                 let vocabulary = Vocabulary(
                     definition: draf.definition,
                     meaning: draf.meaning,
                     group: draf.group ,
                     note: draf.note,
-                    language: self.selectedLanguage
+                    language: preferences.selectedLanguage
                 )
                 modelContext.insert(vocabulary)
             }
@@ -79,9 +52,9 @@ struct VocabularyAddingView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading) {
-                    LanguageMenuView(languages: languages, showNewLanguage: $showNewLanguage, selectedLanguage: $selectedLanguage)
+                    LanguageMenuView(languages: preferences.languages, showNewLanguage: $showNewLanguage, selectedLanguage: $preferences.selectedLanguage)
                     
-                    RowView(saveVocabularies: $saveVocabularies, groups: groups, selectedGroup: $selectedGroup, isPresented: $showNewGroup) // ForEach
+                    RowView(saveVocabularies: $saveVocabularies, groups: preferences.groups, selectedGroup: $preferences.selectedGroup, isPresented: $showNewGroup) // ForEach
                     AddingRowView(saveVocabularies: $saveVocabularies) // HStack2
                 } // Vstack
                 .padding(5)
@@ -126,7 +99,7 @@ struct VocabularyAddingView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         for draf in saveVocabularies {
-                            if draf.definition == "" || draf.meaning == "" || draf.group == "" || selectedLanguage == "" {
+                            if draf.definition == "" || draf.meaning == "" || draf.group == "" || preferences.selectedLanguage == "" {
                                 showAlert = true
                             }
                         }
@@ -151,17 +124,7 @@ struct VocabularyAddingView: View {
             .padding(5)
         } // Navigation
         .onAppear(){
-            loadDatas()
-        }
-        .onChange(of: selectedLanguage){ oldValue, newValue in
-            UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage")
-            if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage){
-                groups = savedGroups
-                selectedGroup = groups.first ?? ""
-            } else {
-                groups = []
-                selectedGroup = ""
-            }
+            preferences.load()
         }
     }
 }
@@ -191,7 +154,7 @@ struct FormTextField: View {
 }
 
 #Preview {
-    VocabularyAddingView(selectedLanguage: "English")
+    VocabularyAddingView()
 }
 
 

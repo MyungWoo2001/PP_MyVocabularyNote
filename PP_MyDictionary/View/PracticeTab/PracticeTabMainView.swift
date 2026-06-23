@@ -12,54 +12,19 @@ struct PracticeTabMainView: View {
     
     @State private var count: Int = 0
     
-    @State var languages: [String] = []
-    @State var selectedLanguage: String = ""
-    @State var groups: [String] = []
-    @State var selectedGroup: String = ""
+    @StateObject private var preferences = VocabularyPreferencesStore()
     
     private func loadDatas() {
-        if let savedLanguages = UserDefaults.standard.stringArray(forKey: "languages") {
-            languages = savedLanguages
-            languages.sort(by: <)
-        }
-        if let savedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") {
-            selectedLanguage = savedLanguage
-        }
-        if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups
-            groups.sort(by: <)
-        }
-        if let savedGroup = UserDefaults.standard.string(forKey: "selectedGroup") {
-            selectedGroup = savedGroup
-        }
+        preferences.load()
         words = filteredVocabularies()
         words.shuffle()
-    }
-    
-    @State private var showNewLanguage: Bool = false
-    @State var newLanguage: String = ""
-    private func saveLanguage() {
-        if newLanguage != "" {
-            languages.append(newLanguage)
-            UserDefaults.standard.set(languages, forKey: "languages")
-            newLanguage = ""
-        }
-    }
-    @State private var showNewGroup: Bool = false
-    @State var newGroup: String = ""
-    private func saveGroup(){
-        if newGroup != "" {
-            groups.append(newGroup)
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
-            newGroup = ""
-        }
     }
     
     @Query var vocabularies: [Vocabulary]
     @State var words: [Vocabulary] = []
     private func filteredVocabularies() -> [Vocabulary] {
         return vocabularies.filter {
-            $0.language == selectedLanguage && $0.group == selectedGroup
+            $0.language == preferences.selectedLanguage && $0.group == preferences.selectedGroup
         }
     }
     
@@ -86,8 +51,8 @@ struct PracticeTabMainView: View {
     var body: some View {
         NavigationStack {
             VStack() {
-                StoryMenuView(options: languages, selected: $selectedLanguage, key: "selectedLanguage")
-                StoryMenuView(options: groups, selected: $selectedGroup, key: "selectedGroup")
+                StoryMenuView(options: preferences.languages, selected: $preferences.selectedLanguage)
+                StoryMenuView(options: preferences.groups, selected: $preferences.selectedGroup)
                 VStack {
                     if showEmptyView {
                         PracticeEmptyView(showVocabularyAddingView: $showVocabularyAddingView)
@@ -169,22 +134,13 @@ struct PracticeTabMainView: View {
             words.shuffle()
             generateQuestion(vocabs: words)
         }
-        .onChange(of: selectedGroup) {
+        .onChange(of: preferences.selectedGroup) {
             words = filteredVocabularies()
             words.shuffle()
             generateQuestion(vocabs: words)
             count = 0
         }
-        .onChange(of: selectedLanguage){ oldValue, newValue in
-            UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage")
-            if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage){
-                groups = savedGroups
-                groups.sort(by: <)
-                selectedGroup = groups.first ?? ""
-            } else {
-                groups = []
-                selectedGroup = ""
-            }
+        .onChange(of: preferences.selectedLanguage){ oldValue, newValue in
             generateQuestion(vocabs: filteredVocabularies())
             count = 0
         }
@@ -327,14 +283,12 @@ struct MenuView: View {
 struct StoryMenuView: View {
     var options: [String]
     @Binding var selected: String
-    var key: String
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(options.indices, id: \.self) { index in
                     Button(action: {
                         selected = options[index]
-                        UserDefaults.standard.set(selected, forKey: key)
                     }) {
                         Text(options[index])
                             .foregroundColor(.white)

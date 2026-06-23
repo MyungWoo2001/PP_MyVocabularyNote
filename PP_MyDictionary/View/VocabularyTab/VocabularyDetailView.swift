@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct VocabularyDetailView: View {
+    
+    let speech = SpeechService()
+    
     var vocabulary: Vocabulary
     
     @State private var showEditView: Bool = false
@@ -19,8 +22,19 @@ struct VocabularyDetailView: View {
             VStack {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(vocabulary.definition)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                        HStack {
+                            Text(vocabulary.definition)
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                speech.speak(vocabulary.definition)
+                            }) {
+                                Image(systemName: "speaker.wave.2")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                         
                         Text(vocabulary.meaning)
                             .font(.system(size: 28, weight: .medium, design: .rounded))

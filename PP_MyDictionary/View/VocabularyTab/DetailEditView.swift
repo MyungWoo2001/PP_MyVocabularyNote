@@ -14,47 +14,19 @@ struct DetailEditView: View {
     var vocabulary: Vocabulary
     @State private var editVocabulary: VocabularyDraft = VocabularyDraft()
     
-    // Language
-    @State var languages: [String] = []
-    @State var selectedLanguage: String = ""
-    @State var groups: [String] = []
-    @State var selectedGroup: String = ""
-    
-    private func loadDatas() {
-        if let savedLanguages = UserDefaults.standard.stringArray(forKey: "languages") {
-            languages = savedLanguages
-            languages.sort(by: <)
-        }
-        if let savedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") {
-            selectedLanguage = savedLanguage
-        }
-        if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups
-            groups.sort(by: <)
-        }
-        if let savedGroup = UserDefaults.standard.string(forKey: "selectedGroup") {
-            selectedGroup = savedGroup
-        }
-    }
+    @StateObject private var preferences = VocabularyPreferencesStore()
     
     @State private var showNewLanguage: Bool = false
     @State var newLanguage: String = ""
     private func saveLanguage() {
-        if newLanguage != "" {
-            languages.append(newLanguage)
-            UserDefaults.standard.set(languages, forKey: "languages")
-            newLanguage = ""
-        }
+        preferences.addLanguage(newLanguage)
+        newLanguage = ""
     }
     @State private var showNewGroup: Bool = false
     @State var newGroup: String = ""
     private func saveGroup(){
-        if newGroup != "" {
-            groups.append(newGroup)
-            groups.sort(by: <)
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
-            newGroup = ""
-        }
+        preferences.addGroup(newGroup)
+        newGroup = ""
     }
     
     @State private var showDeleteGroupAlert: Bool = false
@@ -65,8 +37,8 @@ struct DetailEditView: View {
         if let _ = try? modelContext.fetch(descriptor).first {
             showDeleteGroupAlert.toggle()
         } else {
-            if let index = groups.firstIndex(of: group) {
-                groups.remove(at: index)
+            if let index = preferences.groups.firstIndex(of: group) {
+                _ = preferences.deleteGroup(at: index)
             }
         }
     }
@@ -75,16 +47,13 @@ struct DetailEditView: View {
     @Environment(\.dismiss) var dismiss
     
     private func save(){
-        if !groups.contains(editVocabulary.group) {
-            groups.append(editVocabulary.group)
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
-        }
+        preferences.addSelectedGroupIfNeeded(editVocabulary.group)
         if (!editVocabulary.definition.isEmpty && !editVocabulary.meaning.isEmpty){
             vocabulary.definition = editVocabulary.definition
             vocabulary.meaning = editVocabulary.meaning
             vocabulary.note = editVocabulary.note
             vocabulary.group = editVocabulary.group
-            vocabulary.language = selectedLanguage
+            vocabulary.language = preferences.selectedLanguage
             do{
                 try modelContext.save()
                 print("Save success")
@@ -103,14 +72,14 @@ struct DetailEditView: View {
                                 newLanguage = ""
                                 showNewLanguage.toggle()
                             }
-                            ForEach (languages, id: \.self) {
+                            ForEach (preferences.languages, id: \.self) {
                                 lang in
                                 Button(lang){
-                                    selectedLanguage = lang
+                                    preferences.selectedLanguage = lang
                                 }
                             }
                         } label: {
-                            Text(selectedLanguage)
+                            Text(preferences.selectedLanguage)
                                 .foregroundColor(.primary)
                                 .font(.system(size: 20, weight: .bold))
                                 .padding(5)
@@ -130,7 +99,7 @@ struct DetailEditView: View {
                                 newGroup = ""
                                 showNewGroup.toggle()
                             }
-                            ForEach (groups, id: \.self) {
+                            ForEach (preferences.groups, id: \.self) {
                                 group in
                                 Button(action: {
                                     editVocabulary.group = group
@@ -189,7 +158,8 @@ struct DetailEditView: View {
                 RoundedRectangle(cornerRadius: 15)
                     .fill(Color("detailBackground"))
             )
-            .padding(5)            .toolbar {
+            .padding(5)
+            .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing){
                     Button(action: {
                         save()
@@ -218,23 +188,12 @@ struct DetailEditView: View {
             }
         }// NavigationStack
         .onAppear(){
-            loadDatas()
+            preferences.load()
             editVocabulary.definition = vocabulary.definition
             editVocabulary.meaning = vocabulary.meaning
             editVocabulary.note = vocabulary.note
             editVocabulary.group = vocabulary.group
             editVocabulary.language = vocabulary.language
-        }
-        .onChange(of: selectedLanguage){ oldValue, newValue in
-            UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage")
-            if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage){
-                groups = savedGroups
-                groups.sort(by: <)
-                selectedGroup = groups.first ?? ""
-            } else {
-                groups = []
-                selectedGroup = ""
-            }
         }
     }
 }

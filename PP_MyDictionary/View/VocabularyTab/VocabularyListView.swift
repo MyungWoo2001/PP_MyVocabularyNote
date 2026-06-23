@@ -18,47 +18,19 @@ struct VocabularyListView: View {
             showEmptyView = true
         }
     }
-//    // Language
-    @State var languages: [String] = []
-    @State var selectedLanguage: String = ""
-    @State var groups: [String] = []
-    @State var selectedGroup: String = ""
-    
-    private func loadDatas() {
-        if let savedLanguages = UserDefaults.standard.stringArray(forKey: "languages") {
-            languages = savedLanguages
-            languages.sort(by: <)
-        }
-        if let savedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage") {
-            selectedLanguage = savedLanguage
-        }
-        if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups
-            groups.sort(by: <)
-        }
-        if let savedGroup = UserDefaults.standard.string(forKey: "selectedGroup") {
-            selectedGroup = savedGroup
-        }
-    }
+    @StateObject private var preferences = VocabularyPreferencesStore()
     
     @State private var showNewLanguage: Bool = false
     @State var newLanguage: String = ""
     private func saveLanguage() {
-        if newLanguage != "" {
-            languages.append(newLanguage)
-            UserDefaults.standard.set(languages, forKey: "languages")
-            newLanguage = ""
-        }
+        preferences.addLanguage(newLanguage)
+        newLanguage = ""
     }
     @State private var showNewGroup: Bool = false
     @State var newGroup: String = ""
     private func saveGroup(){
-        if newGroup != "" {
-            groups.append(newGroup)
-            groups.sort(by: <)
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
-            newGroup = ""
-        }
+        preferences.addGroup(newGroup)
+        newGroup = ""
     }
     
     @State private var showLanguageSheet: Bool = false
@@ -66,16 +38,12 @@ struct VocabularyListView: View {
     @State private var showCheckDulicateLanguage: Bool = false
     private func renameLanguage(with name: String) {
         if let index = deleteIndex {
-            let targetLangue = languages[index]
+            let targetLangue = preferences.languages[index]
             let renameVocabularies = vocabularies.filter { $0.language ==  targetLangue }
             for vocab in renameVocabularies {
                 vocab.language = name
             }
-            languages[index] = name
-            UserDefaults.standard.set(languages , forKey: "languages")
-            selectedLanguage = name
-            UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage")
-            UserDefaults.standard.set(groups, forKey: selectedLanguage)
+            preferences.renameLanguage(at: index, to: name)
             deleteIndex = nil
             do {
                 try modelContext.save()
@@ -90,15 +58,11 @@ struct VocabularyListView: View {
     @State private var showCheckDeleteLanguage = false
     private func deleteLanguage() {
         if let index = deleteIndex {
-            let deleteLanguage = languages[index]
+            guard let deleteLanguage = preferences.deleteLanguage(at: index) else { return }
             let deleteVocabularies = vocabularies.filter { $0.language == deleteLanguage }
             for vocab in deleteVocabularies {
                 modelContext.delete(vocab)
             }
-            languages.remove(at: index)
-            groups = []
-            UserDefaults.standard.set(languages , forKey: "languages")
-            UserDefaults.standard.set(groups, forKey: deleteLanguage)
             deleteIndex = nil
         }
     }
@@ -108,15 +72,12 @@ struct VocabularyListView: View {
     @State private var showCheckDulicateGroup: Bool = false
     private func renameGroup(with name: String) {
         if let index = deleteIndex {
-            let targetGroup = groups[index]
-            let renameVocabularies = vocabularies.filter { $0.group == targetGroup && $0.language ==  selectedLanguage }
+            let targetGroup = preferences.groups[index]
+            let renameVocabularies = vocabularies.filter { $0.group == targetGroup && $0.language ==  preferences.selectedLanguage }
             for vocab in renameVocabularies {
                 vocab.group = name
             }
-            groups[index] = name
-            UserDefaults.standard.set(groups , forKey: selectedLanguage)
-            selectedGroup = name
-            UserDefaults.standard.set(selectedGroup, forKey: "selectedGroup")
+            preferences.renameGroup(at: index, to: name)
             deleteIndex = nil
             do {
                 try modelContext.save()
@@ -130,13 +91,11 @@ struct VocabularyListView: View {
     @State private var showCheckDeleteGroup: Bool = false
     private func deleteGroup() {
         if let index = deleteIndex {
-            let deleteGroup = groups[index]
-            let deleteVocabularies = vocabularies.filter { $0.group == deleteGroup && $0.language ==  selectedLanguage }
+            guard let deleteGroup = preferences.deleteGroup(at: index) else { return }
+            let deleteVocabularies = vocabularies.filter { $0.group == deleteGroup && $0.language ==  preferences.selectedLanguage }
             for vocab in deleteVocabularies {
                 modelContext.delete(vocab)
             }
-            groups.remove(at: index)
-            UserDefaults.standard.set(groups , forKey: selectedLanguage)
             deleteIndex = nil
             do {
                 try modelContext.save()
@@ -166,8 +125,8 @@ struct VocabularyListView: View {
     private func filteredItems() -> [Vocabulary] {
         let base = isSearchActive ? searchResults : vocabularies
         return base.filter { vocab in
-            vocab.language == selectedLanguage &&
-            vocab.group == selectedGroup
+            vocab.language == preferences.selectedLanguage &&
+            vocab.group == preferences.selectedGroup
         }
     }
     
@@ -178,8 +137,8 @@ struct VocabularyListView: View {
     
     var body: some View {
         NavigationStack {
-            HorizontalMenuView(options: languages, selected: $selectedLanguage,key: "selectedLanguage", showNew: $showNewLanguage, showCheckDelete: $showLanguageSheet, deleteIndex: $deleteIndex)
-            HorizontalMenuView(options: groups, selected: $selectedGroup,key: "selectedGroup", showNew: $showNewGroup, showCheckDelete: $showGroupSheet, deleteIndex: $deleteIndex)
+            HorizontalMenuView(options: preferences.languages, selected: $preferences.selectedLanguage, showNew: $showNewLanguage, showCheckDelete: $showLanguageSheet, deleteIndex: $deleteIndex)
+            HorizontalMenuView(options: preferences.groups, selected: $preferences.selectedGroup, showNew: $showNewGroup, showCheckDelete: $showGroupSheet, deleteIndex: $deleteIndex)
 
             
             List{
@@ -281,7 +240,7 @@ struct VocabularyListView: View {
                 TextField("", text: $newGroup)
                 Button("Cancel", role: .cancel) {}
                 Button("Save"){
-                    if(checkContains(newGroup, groups)){
+                    if(checkContains(newGroup, preferences.groups)){
                         showCheckDulicateGroup.toggle()
                     } else {
                         renameGroup(with: newGroup)
@@ -295,8 +254,7 @@ struct VocabularyListView: View {
                 Button("Save"){
                     renameGroup(with: newGroup)
                     newGroup = ""
-                    groups = Array(Set(groups))
-                    UserDefaults.standard.set(groups, forKey: selectedLanguage)
+                    preferences.deduplicateGroups()
                 }
                 Button("Cancel", role:.cancel){}
             } message: {
@@ -344,30 +302,21 @@ struct VocabularyListView: View {
         }
         .onAppear() {
             showWalkthrough = hasViewedWalkthrough ? false : true
-            loadDatas()
-            checkEmptyView(language: selectedLanguage)
+            preferences.load()
+            checkEmptyView(language: preferences.selectedLanguage)
         }
         .onChange(of: showNewVocabulary) { oldValue, newValue in
-            loadDatas()
-            checkEmptyView(language: selectedLanguage)
+            preferences.load()
+            checkEmptyView(language: preferences.selectedLanguage)
         }
         .onChange(of: vocabularies) { oldValue, newValue in
-            checkEmptyView(language: selectedLanguage)
+            checkEmptyView(language: preferences.selectedLanguage)
         }
-        .onChange(of: selectedLanguage){ oldValue, newValue in
-            UserDefaults.standard.set(selectedLanguage, forKey: "selectedLanguage")
-            if let savedGroups = UserDefaults.standard.stringArray(forKey: selectedLanguage){
-                groups = savedGroups
-                groups.sort(by: <)
-                selectedGroup = groups.first ?? ""
-            } else {
-                groups = []
-                selectedGroup = ""
-            }
-            checkEmptyView(language: selectedLanguage)
+        .onChange(of: preferences.selectedLanguage){ oldValue, newValue in
+            checkEmptyView(language: preferences.selectedLanguage)
         }
-        .onChange(of: selectedGroup) { oldValue, newValue in
-            checkEmptyView(language: selectedLanguage)
+        .onChange(of: preferences.selectedGroup) { oldValue, newValue in
+            checkEmptyView(language: preferences.selectedLanguage)
         }
 
         .searchable(text: $searchText,isPresented: $isSearchActive, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
@@ -432,7 +381,6 @@ struct VocabularyRowView: View {
 struct HorizontalMenuView: View {
     var options: [String]
     @Binding var selected: String
-    var key: String
     @Binding var showNew: Bool
     @Binding var showCheckDelete: Bool
     @Binding var deleteIndex: Int?
@@ -447,7 +395,6 @@ struct HorizontalMenuView: View {
                 ForEach(options.indices, id: \.self) { index in
                     Button(action: {
                         selected = options[index]
-                        UserDefaults.standard.set(selected, forKey: key)
                     }) {
                         Text(options[index])
                             .foregroundColor(.white)
