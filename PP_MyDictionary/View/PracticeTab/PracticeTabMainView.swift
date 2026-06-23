@@ -10,6 +10,8 @@ import SwiftData
 
 struct PracticeTabMainView: View {
     
+    private let quizEngine = QuizEngine()
+    
     @State private var count: Int = 0
     
     @StateObject private var preferences = VocabularyPreferencesStore()
@@ -21,10 +23,12 @@ struct PracticeTabMainView: View {
     }
     
     @Query var vocabularies: [Vocabulary]
-    @State var words: [Vocabulary] = []
-    private func filteredVocabularies() -> [Vocabulary] {
+    @State var words: [QuizVocabularyItem] = []
+    private func filteredVocabularies() -> [QuizVocabularyItem] {
         return vocabularies.filter {
             $0.language == preferences.selectedLanguage && $0.group == preferences.selectedGroup
+        }.map {
+            QuizVocabularyItem(word: $0.definition, meaning: $0.meaning)
         }
     }
     
@@ -32,20 +36,24 @@ struct PracticeTabMainView: View {
     
     @State private var selectedIndex: Int? = nil
     private func buttonColor(for index: Int) -> Color {
-        if let selected = selectedIndex {
-            if selected == index {
-                return index == correctIndex ? Color("wrongAnswer") : Color("rightAnswer")
-            }
+        guard let question, let selected = selectedIndex else {
+            return Color(.systemGray6)
         }
+        
+        if index == question.correctIndex {
+            return Color("rightAnswer")
+        }
+        
+        if index == selected {
+            return Color("wrongAnswer")
+        }
+        
         return Color(.systemGray6)
     }
     // Key to call view
     @State private var showVocabularyAddingView: Bool = false
     // Value for quizz
-    @State private var question: Vocabulary? = nil
-    @State private var answers: [String] = []
-    @State private var correctIndex: Int = 0
-    @State private var feedback: String? = nil
+    @State private var question: QuizQuestion? = nil
     @State private var nextQuestion: Bool = false
     
     var body: some View {
@@ -67,19 +75,19 @@ struct PracticeTabMainView: View {
                             }
                             VStack(spacing: 40) {
                                 if let question = question {
-                                    Text("What does \"\(question.definition)\" mean?")
+                                    Text(question.questionText)
                                         .font(.system(size: 24, weight: .bold, design: .rounded))
                                         .multilineTextAlignment(.center)
                                         .lineLimit(nil)             // Không giới hạn số dòng
                                         .fixedSize(horizontal: false, vertical: true)
                                     
                                     VStack(spacing: 20) {
-                                        ForEach(0..<answers.count, id: \.self) { index in
+                                        ForEach(0..<question.options.count, id: \.self) { index in
                                             Button(action: {
                                                 selectedIndex = index
                                                 checkAnswer(index: index)
                                             }) {
-                                                Text(answers[index])
+                                                Text(question.options[index])
                                                     .font(.system(size: 18, weight: .medium, design: .rounded))
                                                     .padding()
                                                     .frame(maxWidth: .infinity)
@@ -141,50 +149,36 @@ struct PracticeTabMainView: View {
             count = 0
         }
         .onChange(of: preferences.selectedLanguage){ oldValue, newValue in
-            generateQuestion(vocabs: filteredVocabularies())
+            words = filteredVocabularies()
+            words.shuffle()
+            generateQuestion(vocabs: words)
             count = 0
         }
 
         
     } // body
     
-    func generateQuestion(vocabs: [Vocabulary]) {
-        if vocabs.count >= 4 {
+    func generateQuestion(vocabs: [QuizVocabularyItem]) {
+        if let generatedQuestion = quizEngine.generateQuestion(from: vocabs, questionIndex: count) {
             showEmptyView = false
+            selectedIndex = nil
+            nextQuestion = false
+            question = generatedQuestion
+        } else {
+            showEmptyView = true
             selectedIndex = nil
             question = nil
             nextQuestion = false
-            
-            let num = count % vocabs.count
-            
-            let selectedObject = vocabs[num]
-            
-            var wrongOptions = vocabs
-                .filter { $0.meaning != selectedObject.meaning }
-                .shuffled()
-                .prefix(3)
-                .map { $0.meaning }
-            
-            // Thêm đáp án đúng vào mảng
-            wrongOptions.append(selectedObject.meaning)
-            
-            // Shuffle toàn bộ để vị trí đúng là ngẫu nhiên
-            answers = wrongOptions.shuffled()
-            
-            // Ghi nhớ vị trí đúng
-            correctIndex = answers.firstIndex(of: selectedObject.meaning) ?? 0
-            
-            question = selectedObject
-        } else {
-            showEmptyView = true
         }
     }
     
     func checkAnswer(index: Int) {
-        if index == correctIndex {
+        guard let question else { return }
+        
+        if quizEngine.isCorrect(selectedIndex: index, question: question) {
             nextQuestion = true
             count+=1
-            if count % words.count == 0{
+            if !words.isEmpty && count % words.count == 0{
                 words.shuffle()
             }
         } else {
