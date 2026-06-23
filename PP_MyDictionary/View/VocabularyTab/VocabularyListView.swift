@@ -130,6 +130,10 @@ struct VocabularyListView: View {
         }
     }
     
+    private var visibleItems: [Vocabulary] {
+        isSearchActive ? searchResults : filteredItems()
+    }
+    
     @Environment(\.modelContext) private var modelContext
     
     @State private var showNewVocabulary = false
@@ -153,14 +157,13 @@ struct VocabularyListView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } else {
-                    let listItems = isSearchActive ? searchResults: filteredItems() 
-                    ForEach(listItems.indices, id: \.self) { index in
+                    ForEach(visibleItems.indices, id: \.self) { index in
                             ZStack(alignment: .leading) {
-                                NavigationLink(destination: VocabularyDetailView(vocabulary: listItems[index])){
+                                NavigationLink(destination: VocabularyDetailView(vocabulary: visibleItems[index])){
                                     EmptyView()
                                 }
                                 .opacity(0)
-                                VocabularyRowView(vocabulary: listItems[index])
+                                VocabularyRowView(vocabulary: visibleItems[index])
                                     .background(Color.white)
                                     .listRowBackground(Color.clear)
                                     .background(Color(.systemGray5))
@@ -335,9 +338,8 @@ struct VocabularyListView: View {
     
     // define record delete function
     private func deleteRecord(indexSet: IndexSet) {
-        let listItem = filteredItems()
         for index in indexSet {
-            let itemToDelete = listItem[index]
+            let itemToDelete = visibleItems[index]
             modelContext.delete(itemToDelete)
         }
     }

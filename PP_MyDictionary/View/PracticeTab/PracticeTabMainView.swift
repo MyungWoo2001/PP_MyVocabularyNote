@@ -13,6 +13,7 @@ struct PracticeTabMainView: View {
     private let quizEngine = QuizEngine()
     
     @State private var count: Int = 0
+    @State private var questionIndex: Int = 0
     
     @StateObject private var preferences = VocabularyPreferencesStore()
     
@@ -54,6 +55,7 @@ struct PracticeTabMainView: View {
     @State private var showVocabularyAddingView: Bool = false
     // Value for quizz
     @State private var question: QuizQuestion? = nil
+    @State private var hasAnswered: Bool = false
     @State private var nextQuestion: Bool = false
     
     var body: some View {
@@ -84,6 +86,7 @@ struct PracticeTabMainView: View {
                                     VStack(spacing: 20) {
                                         ForEach(0..<question.options.count, id: \.self) { index in
                                             Button(action: {
+                                                guard !hasAnswered else { return }
                                                 selectedIndex = index
                                                 checkAnswer(index: index)
                                             }) {
@@ -135,7 +138,7 @@ struct PracticeTabMainView: View {
         }
         .onAppear(){
             loadDatas()
-            generateQuestion(vocabs: filteredVocabularies())
+            generateQuestion(vocabs: words)
         }
         .onChange(of: vocabularies){
             words = filteredVocabularies()
@@ -145,44 +148,49 @@ struct PracticeTabMainView: View {
         .onChange(of: preferences.selectedGroup) {
             words = filteredVocabularies()
             words.shuffle()
-            generateQuestion(vocabs: words)
             count = 0
+            questionIndex = 0
+            generateQuestion(vocabs: words)
         }
         .onChange(of: preferences.selectedLanguage){ oldValue, newValue in
             words = filteredVocabularies()
             words.shuffle()
-            generateQuestion(vocabs: words)
             count = 0
+            questionIndex = 0
+            generateQuestion(vocabs: words)
         }
 
         
     } // body
     
     func generateQuestion(vocabs: [QuizVocabularyItem]) {
-        if let generatedQuestion = quizEngine.generateQuestion(from: vocabs, questionIndex: count) {
+        if let generatedQuestion = quizEngine.generateQuestion(from: vocabs, questionIndex: questionIndex) {
             showEmptyView = false
             selectedIndex = nil
+            hasAnswered = false
             nextQuestion = false
             question = generatedQuestion
         } else {
             showEmptyView = true
             selectedIndex = nil
+            hasAnswered = false
             question = nil
             nextQuestion = false
         }
     }
     
     func checkAnswer(index: Int) {
-        guard let question else { return }
+        guard let question, !hasAnswered else { return }
+        hasAnswered = true
+        nextQuestion = true
         
         if quizEngine.isCorrect(selectedIndex: index, question: question) {
-            nextQuestion = true
             count+=1
-            if !words.isEmpty && count % words.count == 0{
-                words.shuffle()
-            }
-        } else {
-            nextQuestion = false
+        }
+        
+        questionIndex += 1
+        if !words.isEmpty && questionIndex % words.count == 0{
+            words.shuffle()
         }
     }
 } // struct

@@ -56,27 +56,33 @@ final class VocabularyPreferencesStore: ObservableObject {
         isLoading = true
         
         if let savedLanguages = userDefaults.stringArray(forKey: Key.languages) {
-            languages = savedLanguages.sorted(by: <)
+            languages = unique(savedLanguages).sorted(by: <)
+            userDefaults.set(languages, forKey: Key.languages)
         } else {
             languages = ["English"]
             userDefaults.set(languages, forKey: Key.languages)
         }
         
-        if let savedLanguage = userDefaults.string(forKey: Key.selectedLanguage) {
+        if let savedLanguage = userDefaults.string(forKey: Key.selectedLanguage),
+           languages.contains(savedLanguage) {
             selectedLanguage = savedLanguage
         } else {
             selectedLanguage = languages.first ?? ""
             userDefaults.set(selectedLanguage, forKey: Key.selectedLanguage)
         }
         
-        if let savedGroups = userDefaults.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups.sorted(by: <)
-        } else {
-            groups = ["Group1"]
+        if let savedGroups = userDefaults.stringArray(forKey: selectedLanguage), !selectedLanguage.isEmpty {
+            groups = unique(savedGroups).sorted(by: <)
             userDefaults.set(groups, forKey: selectedLanguage)
+        } else {
+            groups = selectedLanguage.isEmpty ? [] : ["Group1"]
+            if !selectedLanguage.isEmpty {
+                userDefaults.set(groups, forKey: selectedLanguage)
+            }
         }
         
-        if let savedGroup = userDefaults.string(forKey: Key.selectedGroup) {
+        if let savedGroup = userDefaults.string(forKey: Key.selectedGroup),
+           groups.contains(savedGroup) {
             selectedGroup = savedGroup
         } else {
             selectedGroup = groups.first ?? ""
@@ -88,38 +94,55 @@ final class VocabularyPreferencesStore: ObservableObject {
     
     func addLanguage(_ name: String) {
         guard !name.isEmpty else { return }
+        guard !languages.contains(name) else { return }
         languages.append(name)
     }
     
     func renameLanguage(at index: Int, to name: String) {
-        guard languages.indices.contains(index) else { return }
-        let currentGroups = groups
+        guard languages.indices.contains(index), !name.isEmpty else { return }
+        let oldLanguage = languages[index]
+        guard oldLanguage != name else { return }
+        let oldGroups = userDefaults.stringArray(forKey: oldLanguage) ?? (oldLanguage == selectedLanguage ? groups : [])
         
         isLoading = true
-        languages[index] = name
-        selectedLanguage = name
-        groups = currentGroups
+        if let existingIndex = languages.firstIndex(of: name), existingIndex != index {
+            languages.remove(at: index)
+        } else {
+            languages[index] = name
+        }
+        
+        if selectedLanguage == oldLanguage {
+            selectedLanguage = name
+        }
         isLoading = false
         
         saveLanguages()
         userDefaults.set(selectedLanguage, forKey: Key.selectedLanguage)
-        saveGroups()
+        
+        let existingGroups = userDefaults.stringArray(forKey: name) ?? []
+        userDefaults.set(unique(existingGroups + oldGroups).sorted(by: <), forKey: name)
+        userDefaults.removeObject(forKey: oldLanguage)
+        loadGroupsForSelectedLanguage()
     }
     
     func deleteLanguage(at index: Int) -> String? {
         guard languages.indices.contains(index) else { return nil }
+        let wasSelectedLanguageDeleted = languages[index] == selectedLanguage
         let deletedLanguage = languages.remove(at: index)
+        userDefaults.removeObject(forKey: deletedLanguage)
         
-        isLoading = true
-        groups = []
-        isLoading = false
+        if wasSelectedLanguageDeleted || !languages.contains(selectedLanguage) {
+            selectedLanguage = languages.first ?? ""
+        } else {
+            loadGroupsForSelectedLanguage()
+        }
         
-        userDefaults.set(groups, forKey: deletedLanguage)
         return deletedLanguage
     }
     
     func addGroup(_ name: String) {
         guard !name.isEmpty else { return }
+        guard !groups.contains(name) else { return }
         groups.append(name)
         groups.sort(by: <)
     }
@@ -132,7 +155,11 @@ final class VocabularyPreferencesStore: ObservableObject {
     
     func deleteGroup(at index: Int) -> String? {
         guard groups.indices.contains(index) else { return nil }
-        return groups.remove(at: index)
+        let deletedGroup = groups.remove(at: index)
+        if selectedGroup == deletedGroup || !groups.contains(selectedGroup) {
+            selectedGroup = groups.first ?? ""
+        }
+        return deletedGroup
     }
     
     func deduplicateGroups() {
@@ -145,12 +172,16 @@ final class VocabularyPreferencesStore: ObservableObject {
     }
     
     private func loadGroupsForSelectedLanguage() {
-        if let savedGroups = userDefaults.stringArray(forKey: selectedLanguage) {
-            groups = savedGroups.sorted(by: <)
-            selectedGroup = groups.first ?? ""
+        if let savedGroups = userDefaults.stringArray(forKey: selectedLanguage), !selectedLanguage.isEmpty {
+            groups = unique(savedGroups).sorted(by: <)
         } else {
             groups = []
-            selectedGroup = ""
+        }
+        
+        if groups.contains(selectedGroup) {
+            userDefaults.set(selectedGroup, forKey: Key.selectedGroup)
+        } else {
+            selectedGroup = groups.first ?? ""
         }
     }
     
@@ -159,6 +190,12 @@ final class VocabularyPreferencesStore: ObservableObject {
     }
     
     private func saveGroups() {
+        guard !selectedLanguage.isEmpty else { return }
         userDefaults.set(groups, forKey: selectedLanguage)
+    }
+    
+    private func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { seen.insert($0).inserted }
     }
 }
