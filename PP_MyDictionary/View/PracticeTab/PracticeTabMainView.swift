@@ -8,9 +8,15 @@
 import SwiftUI
 import SwiftData
 
+enum PracticeMode: String, CaseIterable {
+    case todayReview = "Today Review"
+    case allWords = "All Words"
+}
+
 struct PracticeTabMainView: View {
     
     private let quizEngine = QuizEngine()
+    private let reviewScheduler = ReviewScheduler()
     
     @State private var count: Int = 0
     @State private var questionIndex: Int = 0
@@ -19,17 +25,20 @@ struct PracticeTabMainView: View {
     
     private func loadDatas() {
         preferences.load()
-        words = filteredVocabularies()
-        words.shuffle()
+        refreshQuiz(resetProgress: true)
     }
     
     @Query var vocabularies: [Vocabulary]
+    @Environment(\.modelContext) private var modelContext
+    
+    @State private var practiceMode: PracticeMode = .todayReview
     @State var words: [QuizVocabularyItem] = []
-    private func filteredVocabularies() -> [QuizVocabularyItem] {
-        return vocabularies.filter {
+    @State private var answerPool: [QuizVocabularyItem] = []
+    @State private var emptyMessage: String = "You have to add at least 4 words to start practicing!"
+    
+    private func filteredVocabularyModels() -> [Vocabulary] {
+        vocabularies.filter {
             $0.language == preferences.selectedLanguage && $0.group == preferences.selectedGroup
-        }.map {
-            QuizVocabularyItem(word: $0.definition, meaning: $0.meaning)
         }
     }
     
@@ -57,15 +66,24 @@ struct PracticeTabMainView: View {
     @State private var question: QuizQuestion? = nil
     @State private var hasAnswered: Bool = false
     @State private var nextQuestion: Bool = false
+    @State private var isSavingReviewResult: Bool = false
     
     var body: some View {
         NavigationStack {
             VStack() {
                 StoryMenuView(options: preferences.languages, selected: $preferences.selectedLanguage)
                 StoryMenuView(options: preferences.groups, selected: $preferences.selectedGroup)
+                Picker("Practice Mode", selection: $practiceMode) {
+                    ForEach(PracticeMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                
                 VStack {
                     if showEmptyView {
-                        PracticeEmptyView(showVocabularyAddingView: $showVocabularyAddingView)
+                        PracticeEmptyView(showVocabularyAddingView: $showVocabularyAddingView, message: emptyMessage)
                         Spacer()
                             .navigationTitle("Practice")
                     } else {
@@ -102,7 +120,7 @@ struct PracticeTabMainView: View {
                                     }
                                     if (nextQuestion) {
                                         Button(action: {
-                                            generateQuestion(vocabs: words)
+                                            generateQuestion(vocabs: words, answerPool: answerPool)
                                         }) {
                                             Text("Next Question")
                                                 .font(.title3)
@@ -138,33 +156,66 @@ struct PracticeTabMainView: View {
         }
         .onAppear(){
             loadDatas()
-            generateQuestion(vocabs: words)
         }
         .onChange(of: vocabularies){
-            words = filteredVocabularies()
-            words.shuffle()
-            generateQuestion(vocabs: words)
+            if isSavingReviewResult {
+                isSavingReviewResult = false
+                return
+            }
+            refreshQuiz(resetProgress: true)
         }
         .onChange(of: preferences.selectedGroup) {
-            words = filteredVocabularies()
-            words.shuffle()
-            count = 0
-            questionIndex = 0
-            generateQuestion(vocabs: words)
+            refreshQuiz(resetProgress: true)
         }
         .onChange(of: preferences.selectedLanguage){ oldValue, newValue in
-            words = filteredVocabularies()
-            words.shuffle()
-            count = 0
-            questionIndex = 0
-            generateQuestion(vocabs: words)
+            refreshQuiz(resetProgress: true)
+        }
+        .onChange(of: practiceMode) { oldValue, newValue in
+            refreshQuiz(resetProgress: true)
         }
 
         
     } // body
     
-    func generateQuestion(vocabs: [QuizVocabularyItem]) {
-        if let generatedQuestion = quizEngine.generateQuestion(from: vocabs, questionIndex: questionIndex) {
+    private func quizItems(from vocabularies: [Vocabulary]) -> [QuizVocabularyItem] {
+        vocabularies.map {
+            QuizVocabularyItem(id: $0.persistentModelID, word: $0.definition, meaning: $0.meaning)
+        }
+    }
+    
+    private func refreshQuiz(resetProgress: Bool) {
+        let groupVocabularies = filteredVocabularyModels()
+        answerPool = quizItems(from: groupVocabularies)
+        
+        if resetProgress {
+            count = 0
+            questionIndex = 0
+        }
+        
+        guard groupVocabularies.count >= 4 else {
+            words = []
+            emptyMessage = "You have to add at least 4 words to start practicing!"
+            generateQuestion(vocabs: words, answerPool: answerPool)
+            return
+        }
+        
+        switch practiceMode {
+        case .todayReview:
+            let dueVocabularies = reviewScheduler.dueVocabularies(from: groupVocabularies)
+            words = quizItems(from: dueVocabularies)
+            if words.isEmpty {
+                emptyMessage = "You have completed today's review!"
+            }
+        case .allWords:
+            words = answerPool
+        }
+        
+        words.shuffle()
+        generateQuestion(vocabs: words, answerPool: answerPool)
+    }
+    
+    func generateQuestion(vocabs: [QuizVocabularyItem], answerPool: [QuizVocabularyItem]) {
+        if let generatedQuestion = quizEngine.generateQuestion(from: vocabs, answerPool: answerPool, questionIndex: questionIndex) {
             showEmptyView = false
             selectedIndex = nil
             hasAnswered = false
@@ -183,9 +234,28 @@ struct PracticeTabMainView: View {
         guard let question, !hasAnswered else { return }
         hasAnswered = true
         nextQuestion = true
+        let isCorrect = quizEngine.isCorrect(selectedIndex: index, question: question)
         
-        if quizEngine.isCorrect(selectedIndex: index, question: question) {
+        if isCorrect {
             count+=1
+        }
+        
+        if let reviewedVocabulary = vocabularies.first(where: { $0.persistentModelID == question.vocabulary.id }) {
+            reviewScheduler.updateReviewResult(for: reviewedVocabulary, isCorrect: isCorrect)
+            do {
+                isSavingReviewResult = true
+                try modelContext.save()
+            } catch {
+                isSavingReviewResult = false
+                print("Save review result error: \(error)")
+            }
+        }
+        
+        if practiceMode == .todayReview && isCorrect {
+            words.removeAll { $0.id == question.vocabulary.id }
+            if words.isEmpty {
+                emptyMessage = "You have completed today's review!"
+            }
         }
         
         questionIndex += 1
@@ -226,6 +296,8 @@ struct PickerView2: View {
 
 struct PracticeEmptyView: View {
     @Binding var showVocabularyAddingView: Bool
+    var message: String = "You have to add at least 4 words to start practicing!"
+    
     var body: some View {
         VStack(spacing: 60){
             Image(systemName: "book.closed")
@@ -233,7 +305,7 @@ struct PracticeEmptyView: View {
                 .frame(width: 128, height: 128)
                 .padding(.horizontal, 100)
             
-            Text("You have to add at least 4 words to start practicing!")
+            Text(message)
                 .font(.title)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 50)

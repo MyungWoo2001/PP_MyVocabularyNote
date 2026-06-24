@@ -6,13 +6,14 @@
 //
 
 import Foundation
+import SwiftData
 
 struct QuizVocabularyItem: Identifiable, Equatable {
-    let id: UUID
+    let id: PersistentIdentifier
     let word: String
     let meaning: String
     
-    init(id: UUID = UUID(), word: String, meaning: String) {
+    init(id: PersistentIdentifier, word: String, meaning: String) {
         self.id = id
         self.word = word
         self.meaning = meaning
@@ -33,16 +34,22 @@ final class QuizEngine {
     }
     
     func generateQuestion(from vocabularies: [QuizVocabularyItem], questionIndex: Int) -> QuizQuestion? {
-        guard canGenerateQuestion(from: vocabularies) else { return nil }
+        generateQuestion(from: vocabularies, answerPool: vocabularies, questionIndex: questionIndex)
+    }
+    
+    func generateQuestion(from vocabularies: [QuizVocabularyItem], answerPool: [QuizVocabularyItem], questionIndex: Int) -> QuizQuestion? {
+        guard !vocabularies.isEmpty, canGenerateQuestion(from: answerPool) else { return nil }
         
         let safeIndex = questionIndex % vocabularies.count
         let selectedItem = vocabularies[safeIndex]
         
-        var options = vocabularies
+        var options = answerPool
             .filter { $0.id != selectedItem.id }
             .shuffled()
             .prefix(3)
             .map { $0.meaning }
+        
+        guard options.count == 3 else { return nil }
         
         options.append(selectedItem.meaning)
         let shuffledOptions = options.shuffled()

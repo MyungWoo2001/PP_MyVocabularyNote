@@ -15,6 +15,11 @@ import SwiftUI
     var note: String = ""
     var group: String = ""
     var language: String = ""
+    var correctCount: Int = 0
+    var wrongCount: Int = 0
+    var reviewLevel: Int = 0
+    var lastReviewedAt: Date?
+    var nextReviewAt: Date?
     
     
     init(definition: String, meaning: String,group: String = "Group1", note: String, language: String = "English") {
